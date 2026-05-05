@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Settings {
+  id             String   @id @default("singleton")
+  dmxInterface   String   @default("artnet")
+  artnetHost     String   @default("192.168.1.255")
+  artnetPort     Int      @default(6454)
+  artnetNet      Int      @default(0)
+  artnetSubnet   Int      @default(0)
+  artnetUniverse Int      @default(0)
+  enttecPort     String?
+  grandMaster    Int      @default(255)
+  updatedAt      DateTime @updatedAt
+}
+
+model FixtureProfile {
+  id           String    @id @default(cuid())
+  name         String
+  manufacturer String
+  oflKey       String?   @unique
+  channels     String    // JSON: ChannelDefinition[]
+  modes        String    // JSON: ModeDefinition[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  instances    FixtureInstance[]
+}
+
+model FixtureInstance {
+  id           String         @id @default(cuid())
+  name         String
+  profileId    String
+  profile      FixtureProfile @relation(fields: [profileId], references: [id])
+  startAddress Int
+  modeIndex    Int            @default(0)
+  positionX    Float          @default(0)
+  positionY    Float          @default(0)
+  group        String?
+  color        String         @default("#3b82f6")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Scene {
+  id        String    @id @default(cuid())
+  name      String
+  values    String    // JSON: Record<string, number> (channel -> value)
+  fadeIn    Int       @default(0)
+  fadeOut   Int       @default(0)
+  sortOrder Int       @default(0)
+  thumbnail String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Look {
+  id        String   @id @default(cuid())
+  name      String
+  type      String   // 'color' | 'position' | 'beam' | 'gobo' | 'effect'
+  values    String   // JSON: Record<string, number>
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
