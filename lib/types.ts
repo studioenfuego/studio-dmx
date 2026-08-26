@@ -27,7 +27,9 @@ export type CapabilityType =
   | "goboPrimary"
   | "goboSecondary"
   | "cct"
+  | "cctFine"
   | "greenOffset"
+  | "greenOffsetLinear"
   | "crossFade"
   | "fan"
   | "strobe"
@@ -47,6 +49,7 @@ export interface FixtureProfileData {
   name: string;
   manufacturer: string;
   oflKey?: string | null;
+  icon?: string | null;
   channels: ChannelDefinition[];
   modes: ModeDefinition[];
 }
@@ -59,6 +62,9 @@ export interface FixtureInstanceData {
   modeIndex: number;
   positionX: number;
   positionY: number;
+  iconRotation: number;
+  iconScale: number;
+  channelBreakout: boolean;
   group?: string | null;
   color: string;
   profile?: FixtureProfileData;
@@ -131,4 +137,36 @@ export interface WSBlackoutMessage extends WSMessage {
 export interface WSGrandMasterMessage extends WSMessage {
   type: "grand_master";
   value: number;
+}
+
+export interface WSSetDimmerChannelsMessage extends WSMessage {
+  type: "set_dimmer_channels";
+  addresses: number[];
+}
+
+export interface GroupOverrides {
+  color?: string;         // hex — applied to R/G/B channels
+  cct?: number;          // 0–255
+  greenOffset?: number;  // 0–255 (sent to greenOffset or greenOffsetLinear)
+  crossFade?: number;    // 0–255
+  fan?: number;          // 0–255
+}
+
+export interface GroupData {
+  id: string;
+  name: string;
+  color: string;         // UI accent color
+  level: number;         // 0–255 master multiplier
+  fixtureIds: string[];
+  overrides: GroupOverrides;
+  sortOrder: number;
+}
+
+export interface StageBackgroundData {
+  imageUrl: string | null;
+  x: number;        // center position, % of stage width
+  y: number;        // center position, % of stage height
+  scale: number;    // width, % of stage width
+  rotation: number; // 0 | 90 | 180 | 270
+  locked: boolean;
 }

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" width="30.972" height="37.801" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 30.972 37.801">
+  <defs>
+    <linearGradient id="New_Gradient_Swatch_4" data-name="New Gradient Swatch 4" x1="15.486" y1=".949" x2="15.486" y2="10.247" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#414042"/>
+      <stop offset="1" stop-color="#393839"/>
+    </linearGradient>
+    <clipPath id="clippath">
+      <path d="M23.561,27.096l-.519,9.886s-4.922.819-7.557.819-7.535-.819-7.535-.819l-.516-9.884s-4.34-6.193-4.34-11.76h24.803c0,5.566-4.336,11.758-4.336,11.758Z" fill="none"/>
+    </clipPath>
+  </defs>
+  <g id="Layer_1-2" data-name="Layer 1">
+    <g>
+      <g>
+        <polyline points="8.481 12.166 4.28 .5 26.692 .5 22.708 12.166" fill="url(#New_Gradient_Swatch_4)" stroke="#414042"/>
+        <line x1="5.698" y1="12.166" x2=".454" y2=".813" fill="none" stroke="#414042"/>
+        <line x1="25.274" y1="12.166" x2="30.518" y2=".812" fill="none" stroke="#414042"/>
+        <line x1="3.122" y1="12.51" x2="27.864" y2="12.51" fill="none" stroke="#414042"/>
+      </g>
+      <g>
+        <line x1="6.368" y1="28.258" x2="24.798" y2="28.259" fill="none" stroke="#231f20" stroke-width="1.5"/>
+        <g>
+          <line x1="6.339" y1="26.437" x2="6.339" y2="30.127" fill="none" stroke="#58595b"/>
+          <line x1="24.768" y1="26.437" x2="24.768" y2="30.128" fill="none" stroke="#58595b"/>
+        </g>
+        <g clip-path="url(#clippath)">
+          <path d="M23.083,27.041l-.486,12.267h-14.201l-.484-12.266s-4.082-5.83-4.082-11.068h23.334c0,5.238-4.08,11.066-4.08,11.066Z" fill="#414042" stroke="#1c75bc"/>
+          <path d="M15.497,27.514c-2.93,0-7.541-.438-7.541-.438,0,0-4.127-5.862-4.127-11.101h23.334c0,5.238-4.08,11.101-4.08,11.101,0,0-4.656.438-7.586.438Z" fill="#414042"/>
+          <g>
+            <g>
+              <rect x="18.016" y="31.326" width="1.281" height="8.312" fill="#215278"/>
+              <rect x="18.161" y="31.504" width=".992" height="6.249" fill="#28608d"/>
+              <rect x="18.313" y="31.684" width=".688" height="5.888" fill="#3277ae"/>
+              <rect x="18.419" y="31.888" width=".475" height="5.482" fill="#3682bf"/>
+            </g>
+            <g>
+              <rect x="16.042" y="31.326" width="1.281" height="8.312" fill="#215278"/>
+              <rect x="16.186" y="31.504" width=".992" height="6.249" fill="#28608d"/>
+              <rect x="16.339" y="31.684" width=".688" height="5.888" fill="#3277ae"/>
+              <rect x="16.444" y="31.888" width=".475" height="5.482" fill="#3682bf"/>
+            </g>
+            <g>
+              <rect x="14.067" y="31.326" width="1.281" height="8.312" fill="#215278"/>
+              <rect x="14.212" y="31.504" width=".992" height="6.249" fill="#28608d"/>
+              <rect x="14.364" y="31.684" width=".688" height="5.888" fill="#3277ae"/>
+              <rect x="14.47" y="31.888" width=".475" height="5.482" fill="#3682bf"/>
+            </g>
+            <g>
+              <rect x="12.093" y="31.326" width="1.281" height="8.312" fill="#215278"/>
+              <rect x="12.237" y="31.504" width=".992" height="6.249" fill="#28608d"/>
+              <rect x="12.389" y="31.684" width=".688" height="5.888" fill="#3277ae"/>
+              <rect x="12.497" y="31.888" width=".473" height="5.482" fill="#3682bf"/>
+            </g>
+          </g>
+          <path d="M23.083,27.041l-.486,9.305s-3.572,1.027-7.111,1.027c-3.851,0-7.09-1.027-7.09-1.027l-.484-9.303s-4.082-5.83-4.082-11.068h23.334c0,5.238-4.08,11.066-4.08,11.066Z" fill="none" stroke="#1c75bc"/>
+        </g>
+        <polygon points="3.122 12.51 4.483 12.51 4.483 13.91 26.513 13.91 26.513 12.51 27.864 12.51 27.864 16.653 27.864 16.653 3.122 16.653 3.122 12.51" fill="#414042"/>
+      </g>
+    </g>
+  </g>
+</svg>

@@ -43,6 +43,27 @@ export function ChannelFader({ channel, value, label, color, onChange }: Props) 
     [channel, getValueFromEvent, onChange]
   );
 
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      dragging.current = true;
+      onChange(channel, getValueFromEvent(e.touches[0].clientY));
+
+      const handleMove = (ev: TouchEvent) => {
+        ev.preventDefault();
+        if (dragging.current) onChange(channel, getValueFromEvent(ev.touches[0].clientY));
+      };
+      const handleEnd = () => {
+        dragging.current = false;
+        window.removeEventListener("touchmove", handleMove);
+        window.removeEventListener("touchend", handleEnd);
+      };
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
+    },
+    [channel, getValueFromEvent, onChange]
+  );
+
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       e.preventDefault();
@@ -67,8 +88,10 @@ export function ChannelFader({ channel, value, label, color, onChange }: Props) 
           width: 14,
           height: 120,
           background: "oklch(0.18 0 0)",
+          touchAction: "none",
         }}
         onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
         onWheel={handleWheel}
       >
         <div

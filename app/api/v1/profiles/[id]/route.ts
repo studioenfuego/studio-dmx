@@ -24,6 +24,7 @@ export async function PATCH(
     data: {
       ...(body.name !== undefined && { name: body.name as string }),
       ...(body.manufacturer !== undefined && { manufacturer: body.manufacturer as string }),
+      ...(body.icon !== undefined && { icon: body.icon as string | null }),
       ...(body.channels !== undefined && { channels: JSON.stringify(body.channels) }),
       ...(body.modes !== undefined && { modes: JSON.stringify(body.modes) }),
     },

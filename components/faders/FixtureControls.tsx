@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
+import { PctInput } from "./PctInput";
 import { HexColorPicker } from "react-colorful";
 import { useDMXStore } from "@/lib/store";
 import { sendWS } from "@/lib/wsClient";
@@ -85,6 +86,9 @@ export function FixtureControls({ fixture }: Props) {
   const [pickerHex, setPickerHex] = useState(storeHex);
   const isDragging = useRef(false);
 
+  const [cctKelvinDraft, setCctKelvinDraft] = useState<string | null>(null);
+  const [ctKelvinDraft, setCtKelvinDraft] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isDragging.current) setPickerHex(storeHex);
   }, [storeHex]);
@@ -134,26 +138,59 @@ export function FixtureControls({ fixture }: Props) {
       {/* CCT — dedicated Kelvin channel (2700K–10000K) */}
       {hasCapability("cct") && (() => {
         const idx = fixtureChannels.findIndex((c) => c.capability === "cct");
-        const val = idx >= 0 ? getChannelValue(idx) : 0;
-        const kelvin = Math.round(2700 + (val / 255) * 7300);
-        const thumbR = Math.round(255 - (val / 255) * 65);
-        const thumbG = Math.round(167 + (val / 255) * 53);
-        const thumbB = Math.round(87 + (val / 255) * 168);
+        const fineIdx = fixtureChannels.findIndex((c) => c.capability === "cctFine");
+        const is16bit = fineIdx >= 0;
+        const coarse = idx >= 0 ? getChannelValue(idx) : 0;
+        const fine = fineIdx >= 0 ? getChannelValue(fineIdx) : 0;
+        const kelvin = is16bit
+          ? Math.round(2700 + ((coarse * 256 + fine) / 65535) * 7300)
+          : Math.round(2700 + (coarse / 255) * 7300);
+        const t = (kelvin - 2700) / 7300;
+        const thumbR = Math.round(255 - t * 65);
+        const thumbG = Math.round(167 + t * 53);
+        const thumbB = Math.round(87 + t * 168);
+        const sendKelvin = (k: number) => {
+          const clamped = Math.max(2700, Math.min(10000, k));
+          const updates: Record<string, number> = {};
+          if (is16bit) {
+            const v16 = Math.round(((clamped - 2700) / 7300) * 65535);
+            if (idx >= 0) updates[fixture.startAddress + idx] = Math.floor(v16 / 256);
+            if (fineIdx >= 0) updates[fixture.startAddress + fineIdx] = v16 % 256;
+          } else {
+            if (idx >= 0) updates[fixture.startAddress + idx] = Math.round(((clamped - 2700) / 7300) * 255);
+          }
+          if (Object.keys(updates).length) sendWS({ type: "set_channels", channels: updates });
+        };
         return (
           <div key="cct" className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Color Temp</label>
-              <span className="text-xs font-mono text-muted-foreground">{kelvin}K</span>
+              <input
+                type="text"
+                className="text-xs font-mono text-muted-foreground bg-transparent border-b border-transparent w-16 text-right focus:outline-none focus:border-border"
+                value={cctKelvinDraft ?? `${kelvin}K`}
+                onFocus={(e) => { setCctKelvinDraft(String(kelvin)); setTimeout(() => (e.target as HTMLInputElement).select(), 0); }}
+                onChange={(e) => setCctKelvinDraft(e.target.value)}
+                onBlur={() => {
+                  const k = parseInt(cctKelvinDraft ?? "");
+                  if (!isNaN(k)) sendKelvin(k);
+                  setCctKelvinDraft(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setCctKelvinDraft(null);
+                }}
+              />
             </div>
             <div className="relative h-5 rounded-full overflow-hidden"
               style={{ background: "linear-gradient(to right, rgb(255,167,87), rgb(255,210,140), rgb(255,248,235), rgb(200,225,255))" }}>
               <input
-                type="range" min={0} max={255} value={val}
-                onChange={(e) => setCapability("cct", parseInt(e.target.value))}
+                type="range" min={2700} max={10000} value={kelvin}
+                onChange={(e) => sendKelvin(parseInt(e.target.value))}
                 className="absolute inset-0 w-full opacity-0 cursor-pointer"
               />
               <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
-                style={{ left: `calc(${(val / 255) * 100}% - 6px)`, background: `rgb(${thumbR},${thumbG},${thumbB})` }} />
+                style={{ left: `calc(${t * 100}% - 6px)`, background: `rgb(${thumbR},${thumbG},${thumbB})` }} />
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>2700K Warm</span>
@@ -200,6 +237,49 @@ export function FixtureControls({ fixture }: Props) {
               <input
                 type="range" min={0} max={255} value={val}
                 onChange={(e) => setCapability("greenOffset", parseInt(e.target.value))}
+                className="absolute inset-0 w-full opacity-0 cursor-pointer"
+              />
+              <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
+                style={{ left: `calc(${(val / 255) * 100}% - 6px)`, background: `rgb(${thumbR},${thumbG},${thumbB})` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>M 100</span>
+              <span>0</span>
+              <span>G 100</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Green Offset — standard linear (0=M100, 128=neutral, 255=G100) */}
+      {hasCapability("greenOffsetLinear") && (() => {
+        const idx = fixtureChannels.findIndex((c) => c.capability === "greenOffsetLinear");
+        const val = idx >= 0 ? getChannelValue(idx) : 0;
+        const offsetValue = Math.max(-100, Math.min(100, Math.round((val - 128) / 1.27)));
+        const offsetLabel = offsetValue > 0 ? `G +${offsetValue}` : offsetValue < 0 ? `M ${Math.abs(offsetValue)}` : "0";
+        const t = Math.abs(offsetValue) / 100;
+        const thumbR = offsetValue <= 0 ? Math.round(180 + t * 40) : Math.round(180 - t * 140);
+        const thumbG = offsetValue <= 0 ? Math.round(180 - t * 140) : Math.round(180 + t * 30);
+        const thumbB = offsetValue <= 0 ? Math.round(180 + t * 40) : Math.round(180 - t * 140);
+        return (
+          <div key="greenOffsetLinear" className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Green Offset</label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCapability("greenOffsetLinear", 128)}
+                  className="text-[9px] text-muted-foreground/60 hover:text-muted-foreground border border-border/40 rounded px-1 py-0.5"
+                >
+                  reset
+                </button>
+                <span className="text-xs font-mono text-muted-foreground">{offsetLabel}</span>
+              </div>
+            </div>
+            <div className="relative h-5 rounded-full overflow-hidden"
+              style={{ background: "linear-gradient(to right, rgb(220,40,220), rgb(190,190,190) 50%, rgb(40,200,40))" }}>
+              <input
+                type="range" min={0} max={255} value={val}
+                onChange={(e) => setCapability("greenOffsetLinear", parseInt(e.target.value))}
                 className="absolute inset-0 w-full opacity-0 cursor-pointer"
               />
               <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
@@ -277,7 +357,7 @@ export function FixtureControls({ fixture }: Props) {
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Pan / Tilt</label>
           <div
             className="relative w-full bg-muted rounded cursor-crosshair border border-border"
-            style={{ aspectRatio: "1" }}
+            style={{ aspectRatio: "1", touchAction: "none" }}
             onMouseDown={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               const updatePanTilt = (ev: MouseEvent | React.MouseEvent) => {
@@ -291,6 +371,24 @@ export function FixtureControls({ fixture }: Props) {
               const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
               window.addEventListener("mousemove", move);
               window.addEventListener("mouseup", up);
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              const rect = e.currentTarget.getBoundingClientRect();
+              const updatePanTilt = (clientX: number, clientY: number) => {
+                const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+                setCapability("pan", Math.round(x * 255));
+                setCapability("tilt", Math.round(y * 255));
+              };
+              updatePanTilt(e.touches[0].clientX, e.touches[0].clientY);
+              const move = (ev: TouchEvent) => {
+                ev.preventDefault();
+                updatePanTilt(ev.touches[0].clientX, ev.touches[0].clientY);
+              };
+              const up = () => { window.removeEventListener("touchmove", move); window.removeEventListener("touchend", up); };
+              window.addEventListener("touchmove", move, { passive: false });
+              window.addEventListener("touchend", up);
             }}
           >
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -333,7 +431,31 @@ export function FixtureControls({ fixture }: Props) {
           <div key="ct" className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Color Temp</label>
-              <span className="text-xs font-mono text-muted-foreground">{kelvin}K</span>
+              <input
+                type="text"
+                className="text-xs font-mono text-muted-foreground bg-transparent border-b border-transparent w-16 text-right focus:outline-none focus:border-border"
+                value={ctKelvinDraft ?? `${kelvin}K`}
+                onFocus={(e) => { setCtKelvinDraft(String(kelvin)); setTimeout(() => (e.target as HTMLInputElement).select(), 0); }}
+                onChange={(e) => setCtKelvinDraft(e.target.value)}
+                onBlur={() => {
+                  const k = parseInt(ctKelvinDraft ?? "");
+                  if (!isNaN(k)) {
+                    const clamped = Math.max(3200, Math.min(5600, k));
+                    const v = Math.round(((clamped - 3200) / 2400) * 255);
+                    const updates: Record<string, number> = {};
+                    fixtureChannels.forEach((ch, i) => {
+                      if (ch.capability === "amber") updates[fixture.startAddress + i] = Math.round((1 - v / 255) * 255);
+                      if (ch.capability === "white") updates[fixture.startAddress + i] = Math.round((v / 255) * 255);
+                    });
+                    if (Object.keys(updates).length) sendWS({ type: "set_channels", channels: updates });
+                  }
+                  setCtKelvinDraft(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setCtKelvinDraft(null);
+                }}
+              />
             </div>
             <div className="relative h-5 rounded-full overflow-hidden"
               style={{ background: "linear-gradient(to right, rgb(255,185,120), rgb(255,245,230), rgb(210,225,255))" }}>
@@ -376,7 +498,15 @@ export function FixtureControls({ fixture }: Props) {
           <div key={cap} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider capitalize">{LABELS[cap] ?? cap}</label>
-              <span className="text-xs font-mono text-muted-foreground">{val}</span>
+              {cap === "dimmer" ? (
+                <PctInput
+                  pct={(val / 255) * 100}
+                  onChange={(p) => setCapability(cap, Math.round(p / 100 * 255))}
+                  className="text-xs font-mono text-right text-muted-foreground"
+                />
+              ) : (
+                <span className="text-xs font-mono text-muted-foreground">{val}</span>
+              )}
             </div>
             <input
               type="range"

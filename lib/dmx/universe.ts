@@ -3,7 +3,12 @@ const CHANNEL_COUNT = 512;
 class UniverseState {
   private channels: number[] = new Array(CHANNEL_COUNT).fill(0);
   private grandMaster = 255;
+  private dimmerChannels: Set<number> = new Set(); // 1-indexed addresses that GM should scale
   private listeners: Set<(channels: number[]) => void> = new Set();
+
+  setDimmerChannels(addresses: number[]): void {
+    this.dimmerChannels = new Set(addresses);
+  }
 
   getChannels(): number[] {
     return [...this.channels];
@@ -48,7 +53,13 @@ class UniverseState {
 
   getOutputChannels(): number[] {
     const gm = this.grandMaster / 255;
-    return this.channels.map((v) => Math.round(v * gm));
+    // If no dimmer channels registered yet, scale everything (legacy/safe fallback)
+    if (this.dimmerChannels.size === 0) {
+      return this.channels.map((v) => Math.round(v * gm));
+    }
+    return this.channels.map((v, i) =>
+      this.dimmerChannels.has(i + 1) ? Math.round(v * gm) : v
+    );
   }
 
   blackout(): void {

@@ -117,7 +117,7 @@ export default function PresetEditPage() {
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <GrandMasterFader />
+        <GrandMasterFader isBlackout={false} onBlackoutExit={() => {}} groupsCollapsed={false} onToggleGroups={() => {}} />
 
         <ScrollArea className="flex-1">
           <div className="flex flex-wrap gap-2 p-4">

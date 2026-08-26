@@ -11,6 +11,7 @@ import type {
   WSSubscribeMessage,
   WSBlackoutMessage,
   WSGrandMasterMessage,
+  WSSetDimmerChannelsMessage,
 } from "./types";
 
 interface ExtendedWebSocket extends WebSocket {
@@ -20,6 +21,7 @@ interface ExtendedWebSocket extends WebSocket {
 }
 
 let wss: WebSocketServer | null = null;
+const serverBaseDimmers: Map<string, number> = new Map();
 
 export function handleWsUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
   if (!wss) return;
@@ -47,6 +49,7 @@ export function initWebSocketServer(): WebSocketServer {
         channels: universe.getChannels(),
         grandMaster: universe.getGrandMaster(),
         engine: dmxEngine.getStatus(),
+        baseDimmers: Object.fromEntries(serverBaseDimmers),
       })
     );
 
@@ -98,6 +101,7 @@ async function handleMessage(
     case "recall_scene": {
       const m = msg as WSRecallSceneMessage;
       await recallScene(m.sceneId, m.fadeTime ?? 0);
+      broadcast({ type: "scene_recalled", sceneId: m.sceneId });
       break;
     }
 
@@ -121,6 +125,13 @@ async function handleMessage(
       break;
     }
 
+    case "set_base_dimmer": {
+      const { fixtureId, value } = msg as unknown as { fixtureId: string; value: number };
+      serverBaseDimmers.set(fixtureId, value);
+      broadcast({ type: "base_dimmer", fixtureId, value });
+      break;
+    }
+
     case "get_state": {
       ws.send(
         JSON.stringify({
@@ -128,6 +139,7 @@ async function handleMessage(
           channels: universe.getChannels(),
           grandMaster: universe.getGrandMaster(),
           engine: dmxEngine.getStatus(),
+          baseDimmers: Object.fromEntries(serverBaseDimmers),
         })
       );
       break;
@@ -153,6 +165,12 @@ async function handleMessage(
         enttecPort: cfg.enttecPort,
       } : undefined);
       broadcast({ type: "engine_status", status: dmxEngine.getStatus() });
+      break;
+    }
+
+    case "set_dimmer_channels": {
+      const m = msg as WSSetDimmerChannelsMessage;
+      universe.setDimmerChannels(m.addresses);
       break;
     }
 

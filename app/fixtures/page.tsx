@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Search, Plus, Trash2, Upload, Save, ChevronDown, ChevronUp, Download, Loader2, Library, CheckCircle2 } from "lucide-react";
+import { Search, Plus, Trash2, Upload, Save, ChevronDown, ChevronUp, Download, Loader2, Library, CheckCircle2, ImageOff, Copy } from "lucide-react";
 import type { FixtureProfileData, ChannelDefinition, ModeDefinition } from "@/lib/types";
 
 type OFLManufacturer = { key: string; name: string };
@@ -16,7 +16,7 @@ type MainView = "library" | "ofl";
 
 const CAPABILITY_OPTIONS = [
   "dimmer", "red", "green", "blue", "white", "amber", "uv",
-  "cct", "greenOffset", "crossFade", "fan",
+  "cct", "cctFine", "greenOffset", "greenOffsetLinear", "crossFade", "fan",
   "pan", "panFine", "tilt", "tiltFine", "colorWheel", "goboPrimary",
   "goboSecondary", "strobe", "zoom", "focus", "iris", "prism", "frost",
   "speed", "effects", "program", "maintenance", "noFunction",
@@ -42,6 +42,41 @@ export default function FixturesPage() {
   const [oflError, setOflError] = useState<string | null>(null);
   const [importingKeys, setImportingKeys] = useState<Set<string>>(new Set());
   const [importedKeys, setImportedKeys] = useState<Set<string>>(new Set());
+
+  const [availableIcons, setAvailableIcons] = useState<string[]>([]);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+
+  const fetchIcons = useCallback(async () => {
+    const res = await fetch("/api/v1/fixture-icons");
+    if (res.ok) setAvailableIcons(await res.json());
+  }, []);
+
+  useEffect(() => {
+    fetchIcons();
+  }, [fetchIcons]);
+
+  const handleIconUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingIcon(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/v1/fixture-icons", { method: "POST", body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        await fetchIcons();
+        setEditProfile((p) => ({ ...p, icon: data.icon }));
+      } else {
+        alert(data.error ?? "Upload failed");
+      }
+    } catch {
+      alert("Upload failed");
+    } finally {
+      setIsUploadingIcon(false);
+      e.target.value = "";
+    }
+  }, [fetchIcons]);
 
   const fetchProfiles = useCallback(async (q: string) => {
     const res = await fetch(`/api/v1/profiles?q=${encodeURIComponent(q)}`);
@@ -130,8 +165,8 @@ export default function FixturesPage() {
     setEditProfile({
       name: "",
       manufacturer: "",
-      channels: [{ name: "Dimmer", capability: "dimmer" }],
-      modes: [{ name: "Default", channelCount: 1, channels: ["Dimmer"] }],
+      channels: [],
+      modes: [],
     });
     setIsEditing(true);
   };
@@ -165,6 +200,26 @@ export default function FixturesPage() {
     await fetchProfiles(search);
     if (selectedProfile?.id === id) { setSelectedProfile(null); setIsEditing(false); }
   }, [selectedProfile, search, fetchProfiles]);
+
+  const duplicateProfile = useCallback(async (profile: FixtureProfileData) => {
+    const res = await fetch("/api/v1/profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `Copy of ${profile.name}`,
+        manufacturer: profile.manufacturer,
+        icon: profile.icon,
+        channels: profile.channels,
+        modes: profile.modes,
+      }),
+    });
+    if (res.ok) {
+      const created: FixtureProfileData = await res.json();
+      await fetchProfiles(search);
+      setSelectedProfile(created);
+      setIsEditing(false);
+    }
+  }, [search, fetchProfiles]);
 
   const handleOFLImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -214,13 +269,80 @@ export default function FixturesPage() {
 
   const updateChannel = (i: number, update: Partial<ChannelDefinition>) => {
     const channels = [...(editProfile.channels ?? [])];
+    const oldName = channels[i].name;
     channels[i] = { ...channels[i], ...update };
+    const newName = channels[i].name;
+    // Keep mode channel references in sync when a channel is renamed
+    if (update.name && oldName !== newName) {
+      setEditProfile((p) => ({
+        ...p,
+        channels,
+        modes: (p.modes ?? []).map((m) => ({
+          ...m,
+          channels: m.channels.map((c) => (c === oldName ? newName : c)),
+        })),
+      }));
+      return;
+    }
     setEditProfile((p) => ({ ...p, channels }));
   };
 
   const removeChannel = (i: number) => {
+    const removed = editProfile.channels?.[i]?.name;
     const channels = (editProfile.channels ?? []).filter((_, idx) => idx !== i);
-    setEditProfile((p) => ({ ...p, channels }));
+    setEditProfile((p) => ({
+      ...p,
+      channels,
+      modes: (p.modes ?? []).map((m) => {
+        const modeChannels = m.channels.filter((c) => c !== removed);
+        return { ...m, channels: modeChannels, channelCount: modeChannels.length };
+      }),
+    }));
+  };
+
+  const addMode = () => {
+    const allChannelNames = (editProfile.channels ?? []).map((c) => c.name);
+    const mode: ModeDefinition = {
+      name: `Mode ${(editProfile.modes?.length ?? 0) + 1}`,
+      channelCount: allChannelNames.length,
+      channels: allChannelNames,
+    };
+    setEditProfile((p) => ({ ...p, modes: [...(p.modes ?? []), mode] }));
+  };
+
+  const updateModeName = (i: number, name: string) => {
+    const modes = [...(editProfile.modes ?? [])];
+    modes[i] = { ...modes[i], name };
+    setEditProfile((p) => ({ ...p, modes }));
+  };
+
+  const addChannelToMode = (modeIdx: number, channelName: string) => {
+    const modes = [...(editProfile.modes ?? [])];
+    const ch = [...modes[modeIdx].channels, channelName];
+    modes[modeIdx] = { ...modes[modeIdx], channels: ch, channelCount: ch.length };
+    setEditProfile((p) => ({ ...p, modes }));
+  };
+
+  const removeChannelFromMode = (modeIdx: number, chIdx: number) => {
+    const modes = [...(editProfile.modes ?? [])];
+    const ch = modes[modeIdx].channels.filter((_, i) => i !== chIdx);
+    modes[modeIdx] = { ...modes[modeIdx], channels: ch, channelCount: ch.length };
+    setEditProfile((p) => ({ ...p, modes }));
+  };
+
+  const moveModeChannel = (modeIdx: number, chIdx: number, dir: -1 | 1) => {
+    const modes = [...(editProfile.modes ?? [])];
+    const ch = [...modes[modeIdx].channels];
+    const target = chIdx + dir;
+    if (target < 0 || target >= ch.length) return;
+    [ch[chIdx], ch[target]] = [ch[target], ch[chIdx]];
+    modes[modeIdx] = { ...modes[modeIdx], channels: ch };
+    setEditProfile((p) => ({ ...p, modes }));
+  };
+
+  const removeMode = (i: number) => {
+    const modes = (editProfile.modes ?? []).filter((_, idx) => idx !== i);
+    setEditProfile((p) => ({ ...p, modes }));
   };
 
   return (
@@ -462,6 +584,45 @@ export default function FixturesPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs text-muted-foreground">Stage Icon</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditProfile((p) => ({ ...p, icon: null }))}
+                      className={`w-12 h-12 rounded border flex items-center justify-center transition-colors ${
+                        !editProfile.icon ? "border-primary bg-accent" : "border-border hover:bg-accent/30"
+                      }`}
+                      title="No icon"
+                    >
+                      <ImageOff size={16} className="text-muted-foreground" />
+                    </button>
+                    {availableIcons.map((icon) => (
+                      <button
+                        type="button"
+                        key={icon}
+                        onClick={() => setEditProfile((p) => ({ ...p, icon }))}
+                        className={`w-12 h-12 rounded border flex items-center justify-center p-1 transition-colors ${
+                          editProfile.icon === icon ? "border-primary bg-accent" : "border-border hover:bg-accent/30"
+                        }`}
+                        title={icon.split("/").pop()}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={icon} alt="" className="max-w-full max-h-full" />
+                      </button>
+                    ))}
+                    <label
+                      className={`w-12 h-12 rounded border border-dashed border-border flex items-center justify-center cursor-pointer hover:bg-accent/30 transition-colors ${
+                        isUploadingIcon ? "opacity-50 pointer-events-none" : ""
+                      }`}
+                      title="Upload new SVG icon"
+                    >
+                      {isUploadingIcon ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      <input type="file" accept=".svg,image/svg+xml" className="hidden" onChange={handleIconUpload} />
+                    </label>
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-sm font-semibold">Channels</h3>
@@ -471,14 +632,17 @@ export default function FixturesPage() {
                     </Button>
                   </div>
                   <div className="space-y-1">
-                    {(editProfile.channels ?? []).map((ch, i) => (
+                    {(editProfile.channels ?? []).map((ch, i) => {
+                      const isDuplicate = (editProfile.channels ?? []).some((c, j) => j !== i && c.name === ch.name);
+                      return (
                       <div key={i} className="flex items-center gap-2 bg-muted/30 rounded px-2 py-1">
                         <span className="text-xs text-muted-foreground font-mono w-6 shrink-0">{i + 1}</span>
                         <Input
                           value={ch.name}
                           onChange={(e) => updateChannel(i, { name: e.target.value })}
-                          className="h-6 text-xs flex-1"
+                          className={`h-6 text-xs flex-1 ${isDuplicate ? "border-destructive focus-visible:ring-destructive" : ""}`}
                           placeholder="Channel name"
+                          title={isDuplicate ? "Duplicate name — each channel must have a unique name" : undefined}
                         />
                         <select
                           value={ch.capability}
@@ -498,7 +662,105 @@ export default function FixturesPage() {
                           <Trash2 size={10} />
                         </Button>
                       </div>
-                    ))}
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold">Modes</h3>
+                    <Badge variant="outline" className="text-xs">{editProfile.modes?.length ?? 0}</Badge>
+                    <Button size="sm" variant="outline" className="h-6 text-xs gap-1 ml-auto" onClick={addMode}>
+                      <Plus size={10} />Add Mode
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mb-2">
+                    Each mode defines a channel order. If only one mode exists it is used automatically.
+                  </p>
+                  <div className="space-y-3">
+                    {(editProfile.modes ?? []).map((mode, mi) => {
+                      const availableToAdd = (editProfile.channels ?? [])
+                        .map((c) => c.name)
+                        .filter((n) => !mode.channels.includes(n));
+                      return (
+                        <div key={mi} className="border border-border rounded-md p-2 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={mode.name}
+                              onChange={(e) => updateModeName(mi, e.target.value)}
+                              className="h-7 text-xs flex-1 font-medium"
+                              placeholder="Mode name"
+                            />
+                            <Badge variant="outline" className="text-[10px] shrink-0">{mode.channelCount}ch</Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => removeMode(mi)}
+                              title="Remove mode"
+                            >
+                              <Trash2 size={11} />
+                            </Button>
+                          </div>
+                          <div className="space-y-1">
+                            {mode.channels.map((chName, ci) => (
+                              <div key={ci} className="flex items-center gap-1 bg-muted/30 rounded px-2 py-0.5">
+                                <span className="text-[10px] text-muted-foreground font-mono w-5 shrink-0">{ci + 1}</span>
+                                <span className="text-xs flex-1 truncate">{chName}</span>
+                                <button
+                                  onClick={() => moveModeChannel(mi, ci, -1)}
+                                  disabled={ci === 0}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-20 px-0.5"
+                                  title="Move up"
+                                >
+                                  <ChevronUp size={12} />
+                                </button>
+                                <button
+                                  onClick={() => moveModeChannel(mi, ci, 1)}
+                                  disabled={ci === mode.channels.length - 1}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-20 px-0.5"
+                                  title="Move down"
+                                >
+                                  <ChevronDown size={12} />
+                                </button>
+                                <button
+                                  onClick={() => removeChannelFromMode(mi, ci)}
+                                  className="text-muted-foreground hover:text-destructive px-0.5"
+                                  title="Remove from mode"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          {availableToAdd.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <select
+                                className="h-6 text-xs bg-background border border-border rounded px-1 text-foreground flex-1"
+                                defaultValue=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    addChannelToMode(mi, e.target.value);
+                                    e.target.value = "";
+                                  }
+                                }}
+                              >
+                                <option value="" disabled>+ Add channel to mode…</option>
+                                {availableToAdd.map((n) => (
+                                  <option key={n} value={n}>{n}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {(editProfile.modes?.length ?? 0) === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-2 border border-dashed border-border rounded">
+                        No modes — click "Add Mode" to create one
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -507,6 +769,10 @@ export default function FixturesPage() {
         ) : selectedProfile ? (
           <>
             <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+              {selectedProfile.icon && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedProfile.icon} alt="" className="w-8 h-8" />
+              )}
               <div>
                 <h2 className="text-sm font-semibold">{selectedProfile.name}</h2>
                 <p className="text-xs text-muted-foreground">{selectedProfile.manufacturer}</p>
@@ -519,6 +785,14 @@ export default function FixturesPage() {
                   onClick={() => deleteProfile(selectedProfile.id)}
                 >
                   <Trash2 size={12} className="mr-1" />Delete
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => duplicateProfile(selectedProfile)}
+                >
+                  <Copy size={12} className="mr-1" />Duplicate
                 </Button>
                 <Button size="sm" className="h-7 text-xs" onClick={() => startEdit(selectedProfile)}>
                   Edit Profile

@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     name: string;
     manufacturer: string;
     oflKey?: string;
+    icon?: string | null;
     channels: unknown[];
     modes: unknown[];
   };
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       name: body.name,
       manufacturer: body.manufacturer,
       oflKey: body.oflKey,
+      icon: body.icon,
       channels: JSON.stringify(body.channels),
       modes: JSON.stringify(body.modes),
     },

@@ -142,6 +142,13 @@
   .fader-thumb:hover {
     background: oklch(0.85 0 0);
   }
+  @keyframes blackout-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  .blackout-active {
+    animation: blackout-flash 0.55s ease-in-out infinite;
+  }
   .scrollbar-thin {
     scrollbar-width: thin;
   }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { broadcast } from "@/lib/wsServer";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,9 @@ export async function PATCH(
       ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder as number }),
     },
   });
+  const allScenes = await prisma.scene.findMany({ orderBy: { sortOrder: "asc" } });
+  broadcast({ type: "scenes_updated", scenes: allScenes.map((s) => ({ ...s, values: JSON.parse(s.values) })) });
+
   return Response.json({ ...scene, values: JSON.parse(scene.values) });
 }
 
@@ -38,5 +42,9 @@ export async function DELETE(
 ) {
   const { id } = await params;
   await prisma.scene.delete({ where: { id } });
+
+  const allScenes = await prisma.scene.findMany({ orderBy: { sortOrder: "asc" } });
+  broadcast({ type: "scenes_updated", scenes: allScenes.map((s) => ({ ...s, values: JSON.parse(s.values) })) });
+
   return new Response(null, { status: 204 });
 }

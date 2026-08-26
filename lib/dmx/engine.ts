@@ -112,6 +112,8 @@ class DMXEngine {
     host?: string;
     enttecPort?: string;
     enabled: boolean;
+    packetsSent: number;
+    localAddress?: string;
   } {
     return {
       running: this.isRunning(),
@@ -121,6 +123,8 @@ class DMXEngine {
       host: this.config.host,
       enttecPort: this.config.enttecPort,
       enabled: this.outputEnabled,
+      packetsSent: this.artnet?.packetsSent ?? 0,
+      localAddress: this.artnet?.localAddress,
     };
   }
 

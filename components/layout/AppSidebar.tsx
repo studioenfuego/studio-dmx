@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Sliders,
+  Map,
   Network,
   BookOpen,
   Cpu,
@@ -18,7 +19,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const navItems = [
   { href: "/faders", label: "Faders", icon: Sliders },
-  { href: "/routing", label: "Routing", icon: Network },
+  { href: "/stage", label: "Stage", icon: Map },
+  { href: "/routing", label: "Patching", icon: Network },
   { href: "/presets", label: "Presets", icon: BookOpen },
   { href: "/fixtures", label: "Fixtures", icon: Cpu },
   { href: "/settings", label: "Settings", icon: Settings },

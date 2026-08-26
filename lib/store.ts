@@ -7,6 +7,7 @@ import type {
   SceneData,
   LookData,
   SettingsData,
+  GroupData,
 } from "./types";
 
 export interface DMXStore {
@@ -20,6 +21,8 @@ export interface DMXStore {
   currentSceneId: string | null;
   selectedFixtureIds: string[];
   wsConnected: boolean;
+  groups: GroupData[];
+  baseDimmers: Record<string, number>; // fixtureId -> base dimmer 0-255
 
   setChannels: (channels: number[]) => void;
   setChannel: (address: number, value: number) => void;
@@ -33,6 +36,9 @@ export interface DMXStore {
   setSelectedFixtures: (ids: string[]) => void;
   toggleFixtureSelection: (id: string) => void;
   setWsConnected: (connected: boolean) => void;
+  setGroups: (groups: GroupData[]) => void;
+  updateGroup: (id: string, updates: Partial<GroupData>) => void;
+  setBaseDimmer: (fixtureId: string, value: number) => void;
 }
 
 export const useDMXStore = create<DMXStore>((set) => ({
@@ -46,6 +52,8 @@ export const useDMXStore = create<DMXStore>((set) => ({
   currentSceneId: null,
   selectedFixtureIds: [],
   wsConnected: false,
+  groups: [],
+  baseDimmers: {},
 
   setChannels: (channels) => set({ channels }),
   setChannel: (address, value) =>
@@ -69,4 +77,13 @@ export const useDMXStore = create<DMXStore>((set) => ({
         : [...state.selectedFixtureIds, id],
     })),
   setWsConnected: (wsConnected) => set({ wsConnected }),
+  setGroups: (groups) => set({ groups }),
+  updateGroup: (id, updates) =>
+    set((state) => ({
+      groups: state.groups.map((g) => (g.id === id ? { ...g, ...updates } : g)),
+    })),
+  setBaseDimmer: (fixtureId, value) =>
+    set((state) => ({
+      baseDimmers: { ...state.baseDimmers, [fixtureId]: value },
+    })),
 }));

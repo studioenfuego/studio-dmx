@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { PctInput } from "./PctInput";
 import type { FixtureInstanceData, ChannelDefinition } from "@/lib/types";
 
 const SINGLE_COLOR_SWATCH: Record<string, string> = {
@@ -22,6 +23,8 @@ interface Props {
   onToggle: () => void;
   onSolo: () => void;
   onSelect: () => void;
+  dimmerBase?: number;
+  groupColor?: string;
 }
 
 export function getFixtureActiveChannels(fixture: FixtureInstanceData): ChannelDefinition[] {
@@ -61,6 +64,8 @@ export function FixtureStrip({
   onToggle,
   onSolo,
   onSelect,
+  dimmerBase,
+  groupColor,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
   const lastNonZero = useRef(255);
@@ -71,8 +76,9 @@ export function FixtureStrip({
   );
 
   const dimmerIdx = fixtureChannels.findIndex((c) => c.capability === "dimmer");
-  const dimmerValue =
+  const rawDimmerValue =
     dimmerIdx >= 0 ? (channels[fixture.startAddress + dimmerIdx - 1] ?? 0) : null;
+  const dimmerValue = rawDimmerValue;
 
   const rIdx = fixtureChannels.findIndex((c) => c.capability === "red");
   const gIdx = fixtureChannels.findIndex((c) => c.capability === "green");
@@ -92,13 +98,10 @@ export function FixtureStrip({
 
   if (masterLevel > 0) lastNonZero.current = masterLevel;
 
-  // Swatch color — reflects the actual color the fixture is set to
   let swatchColor: string;
   if (hasRGB) {
-    // RGB (optionally blended with white channel)
     swatchColor = `rgb(${Math.min(255, rVal + wVal)},${Math.min(255, gVal + wVal)},${Math.min(255, bVal + wVal)})`;
   } else if (hasBiColor) {
-    // Bi-color: amber = warm ~3200K, white = cool ~5600K
     const total = wVal + aVal;
     if (total > 0) {
       const aR = aVal / total, wR = wVal / total;
@@ -107,12 +110,10 @@ export function FixtureStrip({
       swatchColor = "rgb(220,205,175)";
     }
   } else {
-    // Single-color: pick the first known color capability as a fixed hue
     const colorCap = fixtureChannels.find((c) => c.capability in SINGLE_COLOR_SWATCH);
     swatchColor = colorCap ? SINGLE_COLOR_SWATCH[colorCap.capability] : "rgb(255,252,235)";
   }
 
-  // Icon brightness: use dimmer when present; otherwise derive from color channels
   const effectiveIntensity = dimmerValue !== null
     ? dimmerValue
     : hasBiColor ? Math.max(wVal, aVal)
@@ -143,6 +144,26 @@ export function FixtureStrip({
       };
       window.addEventListener("mousemove", handleMove);
       window.addEventListener("mouseup", handleUp);
+    },
+    [dimmerIdx, getValueFromEvent, onDimmerChange]
+  );
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      if (dimmerIdx < 0) return;
+      onDimmerChange(getValueFromEvent(e.touches[0].clientY));
+
+      const handleMove = (ev: TouchEvent) => {
+        ev.preventDefault();
+        onDimmerChange(getValueFromEvent(ev.touches[0].clientY));
+      };
+      const handleEnd = () => {
+        window.removeEventListener("touchmove", handleMove);
+        window.removeEventListener("touchend", handleEnd);
+      };
+      window.addEventListener("touchmove", handleMove, { passive: false });
+      window.addEventListener("touchend", handleEnd);
     },
     [dimmerIdx, getValueFromEvent, onDimmerChange]
   );
@@ -183,6 +204,11 @@ export function FixtureStrip({
         className="w-full px-2 pt-2 pb-1 flex flex-col items-center gap-1 cursor-pointer"
         onClick={onSelect}
       >
+        {groupColor && (
+          <div className="w-full flex justify-end pr-0.5 -mb-1">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ background: groupColor }} title="In group" />
+          </div>
+        )}
         <div
           className="w-10 h-10 rounded-full border-2 transition-all shrink-0"
           style={{
@@ -220,9 +246,12 @@ export function FixtureStrip({
           </div>
         ) : (
           <>
-            <span className="text-[10px] font-mono tabular-nums mb-1" style={{ color: isOn ? "white" : "oklch(0.45 0 0)" }}>
-              {Math.round(pct)}%
-            </span>
+            <PctInput
+              pct={pct}
+              onChange={(p) => onDimmerChange(Math.round(p / 100 * 255))}
+              className="text-[10px] font-mono tabular-nums mb-1 text-center w-full"
+              style={{ color: isOn ? "white" : "oklch(0.45 0 0)" }}
+            />
 
             <div
               ref={trackRef}
@@ -233,8 +262,10 @@ export function FixtureStrip({
                 maxHeight: 200,
                 minHeight: 80,
                 background: "oklch(0.12 0 0)",
+                touchAction: "none",
               }}
               onMouseDown={handleMouseDown}
+              onTouchStart={handleTouchStart}
               onWheel={handleWheel}
             >
               <div

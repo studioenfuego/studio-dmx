@@ -4,6 +4,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { DMXProvider } from "@/components/providers/DMXProvider";
+import { NumpadProvider } from "@/components/faders/NumpadContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,12 +31,14 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
         <TooltipProvider>
           <DMXProvider>
-            <div className="flex h-screen overflow-hidden">
-              <AppSidebar />
-              <main className="flex-1 overflow-auto">
-                {children}
-              </main>
-            </div>
+            <NumpadProvider>
+              <div className="flex h-dvh overflow-hidden">
+                <AppSidebar />
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
+              </div>
+            </NumpadProvider>
           </DMXProvider>
         </TooltipProvider>
       </body>

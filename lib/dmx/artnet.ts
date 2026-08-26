@@ -42,6 +42,8 @@ export class ArtNetOutput {
   private config: Required<ArtNetConfig>;
   private sequence = 0;
   private connected = false;
+  private _packetsSent = 0;
+  private _localAddress = "0.0.0.0";
 
   constructor(config: ArtNetConfig) {
     this.config = {
@@ -59,6 +61,7 @@ export class ArtNetOutput {
     // Art-Net spec: source port must be 6454. Bind to the specific local
     // interface that can reach the target so routing is unambiguous.
     const localAddr = resolveLocalAddress(this.config.host);
+    this._localAddress = localAddr;
     this.socket.bind({ port: ARTNET_PORT, address: localAddr }, () => {
         try {
           this.socket.setBroadcast(true);
@@ -74,17 +77,15 @@ export class ArtNetOutput {
   send(channels: number[]): void {
     if (!this.connected) return;
     const packet = this.buildArtDmxPacket(channels);
-    this.socket.send(
-      packet,
-      0,
-      packet.length,
-      this.config.port,
-      this.config.host,
-      (err) => {
-        if (err) console.error("[ArtNet] Send error:", err.message);
-      }
-    );
+    this.socket.send(packet, 0, packet.length, this.config.port, this.config.host, (err) => {
+      if (err) console.error("[ArtNet] Send error:", err.message);
+      else this._packetsSent++;
+    });
   }
+
+  get packetsSent(): number { return this._packetsSent; }
+  get localAddress(): string { return this._localAddress; }
+  get targetHost(): string { return this.config.host; }
 
   private buildArtDmxPacket(channels: number[]): Buffer {
     const dmxData = Buffer.from(channels.slice(0, 512));

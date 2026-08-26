@@ -25,6 +25,7 @@ model FixtureProfile {
   name         String
   manufacturer String
   oflKey       String?   @unique
+  icon         String?
   channels     String    // JSON: ChannelDefinition[]
   modes        String    // JSON: ModeDefinition[]
   createdAt    DateTime  @default(now())
@@ -41,6 +42,10 @@ model FixtureInstance {
   modeIndex    Int            @default(0)
   positionX    Float          @default(0)
   positionY    Float          @default(0)
+  iconRotation    Float          @default(0)
+  iconScale       Float          @default(100)
+  channelBreakout Boolean        @default(false)
+  sortOrder    Int            @default(0)
   group        String?
   color        String         @default("#3b82f6")
   createdAt    DateTime       @default(now())
@@ -65,5 +70,28 @@ model Look {
   type      String   // 'color' | 'position' | 'beam' | 'gobo' | 'effect'
   values    String   // JSON: Record<string, number>
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Group {
+  id         String   @id @default(cuid())
+  name       String
+  color      String   @default("#8b5cf6")
+  level      Int      @default(255)
+  fixtureIds String   @default("[]")  // JSON: string[]
+  overrides  String   @default("{}")  // JSON: GroupOverrides
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model StageBackground {
+  id        String   @id @default("singleton")
+  imageUrl  String?
+  x         Float    @default(50)
+  y         Float    @default(50)
+  scale     Float    @default(100)
+  rotation  Int      @default(0)
+  locked    Boolean  @default(false)
   updatedAt DateTime @updatedAt
 }

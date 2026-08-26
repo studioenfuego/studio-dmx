@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Save, Play, Square, Wifi, WifiOff, RefreshCw, Usb, Radio } from "lucide-react";
+import { Save, Play, Square, Wifi, WifiOff, RefreshCw, Usb, Radio, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
 interface SerialPortInfo {
   path: string;
@@ -26,6 +26,17 @@ interface SettingsState {
   artnetSubnet: number;
   artnetUniverse: number;
   enttecPort: string;
+}
+
+interface DMXStatus {
+  running: boolean;
+  status: string;
+  message: string;
+  outputMode: string;
+  host?: string;
+  localAddress?: string;
+  packetsSent: number;
+  interfaces: { name: string; address: string; netmask: string }[];
 }
 
 // Enttec USB Pro Mk2/Mk3 identifiers
@@ -56,6 +67,7 @@ export default function SettingsPage() {
   const [engineRunning, setEngineRunning] = useState(false);
   const [ports, setPorts] = useState<SerialPortInfo[]>([]);
   const [portsLoading, setPortsLoading] = useState(false);
+  const [dmxStatus, setDmxStatus] = useState<DMXStatus | null>(null);
 
   useEffect(() => {
     fetch("/api/v1/settings")
@@ -82,6 +94,23 @@ export default function SettingsPage() {
     });
     return unsub;
   }, []);
+
+  const fetchDMXStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/dmx-status");
+      if (res.ok) {
+        const s = await res.json() as DMXStatus;
+        setDmxStatus(s);
+        setEngineRunning(s.running);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchDMXStatus();
+    const interval = setInterval(fetchDMXStatus, 2000);
+    return () => clearInterval(interval);
+  }, [fetchDMXStatus]);
 
   const scanPorts = useCallback(async () => {
     setPortsLoading(true);
@@ -356,6 +385,93 @@ export default function SettingsPage() {
                 <span className="text-[10px] text-muted-foreground">Select a port first</span>
               )}
             </div>
+          </Card>
+
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Output Diagnostics</h2>
+              <button onClick={fetchDMXStatus} className="text-muted-foreground hover:text-foreground transition-colors" title="Refresh">
+                <RefreshCw size={13} />
+              </button>
+            </div>
+
+            {dmxStatus ? (
+              <div className="space-y-3">
+                {/* Engine status */}
+                <div className="flex items-center gap-2">
+                  {dmxStatus.running ? (
+                    <CheckCircle2 size={14} className="text-green-400 shrink-0" />
+                  ) : dmxStatus.status === "error" ? (
+                    <XCircle size={14} className="text-destructive shrink-0" />
+                  ) : (
+                    <AlertCircle size={14} className="text-muted-foreground shrink-0" />
+                  )}
+                  <span className="text-xs font-medium">
+                    Engine: {dmxStatus.running ? "Running" : dmxStatus.status === "error" ? "Error" : "Stopped"}
+                  </span>
+                  {dmxStatus.message && (
+                    <span className="text-xs text-destructive truncate">{dmxStatus.message}</span>
+                  )}
+                </div>
+
+                {/* Packet counter */}
+                {dmxStatus.running && (
+                  <div className="rounded-lg bg-muted/40 border border-border px-3 py-2 space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Packets sent</span>
+                      <span className="font-mono font-semibold text-green-400">{dmxStatus.packetsSent.toLocaleString()}</span>
+                    </div>
+                    {dmxStatus.outputMode === "artnet" && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Sending to</span>
+                          <span className="font-mono">{dmxStatus.host}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">From interface</span>
+                          <span className="font-mono">{dmxStatus.localAddress === "0.0.0.0" ? "OS default" : dmxStatus.localAddress}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Network interfaces */}
+                {dmxStatus.outputMode === "artnet" && dmxStatus.interfaces.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Network Interfaces</p>
+                    {dmxStatus.interfaces.map((iface) => {
+                      const targetParts = (dmxStatus.host ?? "").split(".").map(Number);
+                      const localParts = iface.address.split(".").map(Number);
+                      const maskParts = iface.netmask.split(".").map(Number);
+                      const sameSubnet = targetParts.length === 4 && maskParts.every(
+                        (mask, i) => (localParts[i] & mask) === (targetParts[i] & mask)
+                      );
+                      return (
+                        <div key={iface.address} className={`flex items-center gap-2 rounded px-2 py-1.5 text-xs border ${sameSubnet ? "border-green-500/40 bg-green-500/10" : "border-border bg-muted/20"}`}>
+                          <span className="font-mono flex-1">{iface.address}</span>
+                          <span className="text-muted-foreground text-[10px]">{iface.name}</span>
+                          {sameSubnet && <Badge className="text-[9px] px-1 py-0 bg-green-500/20 text-green-400 border-green-500/40">same subnet</Badge>}
+                        </div>
+                      );
+                    })}
+                    {!dmxStatus.interfaces.some((iface) => {
+                      const targetParts = (dmxStatus.host ?? "").split(".").map(Number);
+                      const localParts = iface.address.split(".").map(Number);
+                      const maskParts = iface.netmask.split(".").map(Number);
+                      return targetParts.length === 4 && maskParts.every((mask, i) => (localParts[i] & mask) === (targetParts[i] & mask));
+                    }) && dmxStatus.host && !dmxStatus.host.endsWith(".255") && (
+                      <div className="flex items-center gap-2 rounded px-2 py-1.5 text-xs border border-amber-500/40 bg-amber-500/10 text-amber-400">
+                        <AlertCircle size={12} className="shrink-0" />
+                        No interface is on the same subnet as {dmxStatus.host}. Check your Art-Net IP or use broadcast (e.g. 2.255.255.255).
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            )}
           </Card>
 
           <Card className="p-4 space-y-3">
