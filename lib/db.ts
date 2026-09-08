@@ -2,7 +2,9 @@ import path from "path";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "./generated/prisma/client";
 
-const dbPath = path.resolve(process.cwd(), "dev.db");
+// Resolve relative to this file, not process.cwd(), so launchd/systemd starts
+// from any directory and still find the correct database.
+const dbPath = path.resolve(__dirname, "../dev.db");
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
