@@ -20,7 +20,7 @@ export function PctInput({ pct, onChange, className, style }: Props) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        numpad?.open(id, pct, onChange);
+        numpad?.open(id, pct, onChange, { min: 0, max: 100, unit: "%", maxDigits: 3 });
       }}
       className={className}
       style={{

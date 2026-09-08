@@ -2,15 +2,26 @@
 
 import { createContext, useContext, useState, useCallback } from "react";
 
+interface NumpadOptions {
+  min?: number;
+  max?: number;
+  unit?: string;
+  maxDigits?: number;
+}
+
 interface Session {
   id: symbol;
   display: string;
   firstInput: boolean;
-  onCommit: (pct: number) => void;
+  onCommit: (val: number) => void;
+  min: number;
+  max: number;
+  unit: string;
+  maxDigits: number;
 }
 
 interface NumpadContextType {
-  open: (id: symbol, initial: number, onCommit: (pct: number) => void) => void;
+  open: (id: symbol, initial: number, onCommit: (val: number) => void, options?: NumpadOptions) => void;
   session: Session | null;
 }
 
@@ -23,16 +34,26 @@ export function useNumpad() {
 export function NumpadProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
 
-  const open = useCallback((id: symbol, initial: number, onCommit: (pct: number) => void) => {
-    setSession({ id, display: String(Math.round(initial)), firstInput: true, onCommit });
+  const open = useCallback((
+    id: symbol,
+    initial: number,
+    onCommit: (val: number) => void,
+    options: NumpadOptions = {}
+  ) => {
+    const min = options.min ?? 0;
+    const max = options.max ?? 100;
+    const unit = options.unit ?? "%";
+    const maxDigits = options.maxDigits ?? 3;
+    setSession({ id, display: String(Math.round(initial)), firstInput: true, onCommit, min, max, unit, maxDigits });
   }, []);
 
   const digit = (d: string) => setSession((s) => {
     if (!s) return s;
-    if (s.firstInput) return { ...s, display: d, firstInput: false };
-    if (s.display.length >= 3) return s;
-    const next = s.display + d;
-    if (parseInt(next) > 100) return s;
+    if (s.firstInput) return { ...s, display: d === "0" ? "0" : d, firstInput: false };
+    if (s.display === "0" && d === "0") return s;
+    if (s.display.length >= s.maxDigits) return s;
+    const next = s.display === "0" ? d : s.display + d;
+    if (parseInt(next) > s.max) return s;
     return { ...s, display: next };
   });
 
@@ -45,7 +66,7 @@ export function NumpadProvider({ children }: { children: React.ReactNode }) {
   const commit = () => {
     if (!session) return;
     const n = parseInt(session.display);
-    session.onCommit(isNaN(n) ? 0 : Math.max(0, Math.min(100, n)));
+    session.onCommit(isNaN(n) ? session.min : Math.max(session.min, Math.min(session.max, n)));
     setSession(null);
   };
 
@@ -56,23 +77,19 @@ export function NumpadProvider({ children }: { children: React.ReactNode }) {
       {children}
       {session && (
         <>
-          {/* Backdrop — dismiss on tap outside */}
           <div className="fixed inset-0 z-40" onClick={cancel} />
 
-          {/* Numpad panel — bottom-left, clear of the right inspector */}
           <div
             className="fixed z-50 bottom-4 left-20 bg-card border border-border rounded-2xl shadow-2xl p-3 select-none"
             style={{ width: 216 }}
           >
-            {/* Value display */}
             <div className="flex items-baseline justify-end gap-1 bg-muted rounded-xl px-3 py-2 mb-3">
               <span className="font-mono text-3xl font-bold tabular-nums text-foreground">
                 {session.display || "0"}
               </span>
-              <span className="font-mono text-lg text-muted-foreground">%</span>
+              <span className="font-mono text-lg text-muted-foreground">{session.unit}</span>
             </div>
 
-            {/* Button grid: 7 8 9 / 4 5 6 / 1 2 3 / ⌫ 0 ✓ */}
             <div className="grid grid-cols-3 gap-2">
               {[7, 8, 9, 4, 5, 6, 1, 2, 3].map((n) => (
                 <button

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from "react";
 import { PctInput } from "./PctInput";
+import { useNumpad } from "./NumpadContext";
 import { HexColorPicker } from "react-colorful";
 import { useDMXStore } from "@/lib/store";
 import { sendWS } from "@/lib/wsClient";
@@ -86,8 +87,9 @@ export function FixtureControls({ fixture }: Props) {
   const [pickerHex, setPickerHex] = useState(storeHex);
   const isDragging = useRef(false);
 
-  const [cctKelvinDraft, setCctKelvinDraft] = useState<string | null>(null);
-  const [ctKelvinDraft, setCtKelvinDraft] = useState<string | null>(null);
+  const numpad = useNumpad();
+  const cctKelvinId = useRef(Symbol()).current;
+  const ctKelvinId = useRef(Symbol()).current;
 
   useEffect(() => {
     if (!isDragging.current) setPickerHex(storeHex);
@@ -135,29 +137,33 @@ export function FixtureControls({ fixture }: Props) {
         )}
       </div>
 
-      {/* CCT — dedicated Kelvin channel (2700K–10000K) */}
+      {/* CCT — dedicated Kelvin channel, range from profile cctMin/cctMax or defaults */}
       {hasCapability("cct") && (() => {
         const idx = fixtureChannels.findIndex((c) => c.capability === "cct");
         const fineIdx = fixtureChannels.findIndex((c) => c.capability === "cctFine");
+        const cctCh = idx >= 0 ? fixtureChannels[idx] : null;
+        const cctMin = cctCh?.cctMin ?? 2700;
+        const cctMax = cctCh?.cctMax ?? 10000;
+        const cctRange = cctMax - cctMin;
         const is16bit = fineIdx >= 0;
         const coarse = idx >= 0 ? getChannelValue(idx) : 0;
         const fine = fineIdx >= 0 ? getChannelValue(fineIdx) : 0;
         const kelvin = is16bit
-          ? Math.round(2700 + ((coarse * 256 + fine) / 65535) * 7300)
-          : Math.round(2700 + (coarse / 255) * 7300);
-        const t = (kelvin - 2700) / 7300;
+          ? Math.round(cctMin + ((coarse * 256 + fine) / 65535) * cctRange)
+          : Math.round(cctMin + (coarse / 255) * cctRange);
+        const t = (kelvin - cctMin) / cctRange;
         const thumbR = Math.round(255 - t * 65);
         const thumbG = Math.round(167 + t * 53);
         const thumbB = Math.round(87 + t * 168);
         const sendKelvin = (k: number) => {
-          const clamped = Math.max(2700, Math.min(10000, k));
+          const clamped = Math.max(cctMin, Math.min(cctMax, k));
           const updates: Record<string, number> = {};
           if (is16bit) {
-            const v16 = Math.round(((clamped - 2700) / 7300) * 65535);
+            const v16 = Math.round(((clamped - cctMin) / cctRange) * 65535);
             if (idx >= 0) updates[fixture.startAddress + idx] = Math.floor(v16 / 256);
             if (fineIdx >= 0) updates[fixture.startAddress + fineIdx] = v16 % 256;
           } else {
-            if (idx >= 0) updates[fixture.startAddress + idx] = Math.round(((clamped - 2700) / 7300) * 255);
+            if (idx >= 0) updates[fixture.startAddress + idx] = Math.round(((clamped - cctMin) / cctRange) * 255);
           }
           if (Object.keys(updates).length) sendWS({ type: "set_channels", channels: updates });
         };
@@ -165,27 +171,19 @@ export function FixtureControls({ fixture }: Props) {
           <div key="cct" className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Color Temp</label>
-              <input
-                type="text"
-                className="text-xs font-mono text-muted-foreground bg-transparent border-b border-transparent w-16 text-right focus:outline-none focus:border-border"
-                value={cctKelvinDraft ?? `${kelvin}K`}
-                onFocus={(e) => { setCctKelvinDraft(String(kelvin)); setTimeout(() => (e.target as HTMLInputElement).select(), 0); }}
-                onChange={(e) => setCctKelvinDraft(e.target.value)}
-                onBlur={() => {
-                  const k = parseInt(cctKelvinDraft ?? "");
-                  if (!isNaN(k)) sendKelvin(k);
-                  setCctKelvinDraft(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  if (e.key === "Escape") setCctKelvinDraft(null);
-                }}
-              />
+              <button
+                type="button"
+                onClick={() => numpad?.open(cctKelvinId, kelvin, sendKelvin, { min: cctMin, max: cctMax, unit: "K", maxDigits: 5 })}
+                className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+                style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", outline: numpad?.session?.id === cctKelvinId ? "1px solid oklch(0.55 0.15 260)" : "none", borderRadius: 3 }}
+              >
+                {kelvin}K
+              </button>
             </div>
             <div className="relative h-5 rounded-full overflow-hidden"
               style={{ background: "linear-gradient(to right, rgb(255,167,87), rgb(255,210,140), rgb(255,248,235), rgb(200,225,255))" }}>
               <input
-                type="range" min={2700} max={10000} value={kelvin}
+                type="range" min={cctMin} max={cctMax} value={kelvin}
                 onChange={(e) => sendKelvin(parseInt(e.target.value))}
                 className="absolute inset-0 w-full opacity-0 cursor-pointer"
               />
@@ -193,8 +191,8 @@ export function FixtureControls({ fixture }: Props) {
                 style={{ left: `calc(${t * 100}% - 6px)`, background: `rgb(${thumbR},${thumbG},${thumbB})` }} />
             </div>
             <div className="flex justify-between text-[10px] text-muted-foreground">
-              <span>2700K Warm</span>
-              <span>10000K Cool</span>
+              <span>{cctMin}K Warm</span>
+              <span>{cctMax}K Cool</span>
             </div>
           </div>
         );
@@ -431,31 +429,23 @@ export function FixtureControls({ fixture }: Props) {
           <div key="ct" className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Color Temp</label>
-              <input
-                type="text"
-                className="text-xs font-mono text-muted-foreground bg-transparent border-b border-transparent w-16 text-right focus:outline-none focus:border-border"
-                value={ctKelvinDraft ?? `${kelvin}K`}
-                onFocus={(e) => { setCtKelvinDraft(String(kelvin)); setTimeout(() => (e.target as HTMLInputElement).select(), 0); }}
-                onChange={(e) => setCtKelvinDraft(e.target.value)}
-                onBlur={() => {
-                  const k = parseInt(ctKelvinDraft ?? "");
-                  if (!isNaN(k)) {
-                    const clamped = Math.max(3200, Math.min(5600, k));
-                    const v = Math.round(((clamped - 3200) / 2400) * 255);
-                    const updates: Record<string, number> = {};
-                    fixtureChannels.forEach((ch, i) => {
-                      if (ch.capability === "amber") updates[fixture.startAddress + i] = Math.round((1 - v / 255) * 255);
-                      if (ch.capability === "white") updates[fixture.startAddress + i] = Math.round((v / 255) * 255);
-                    });
-                    if (Object.keys(updates).length) sendWS({ type: "set_channels", channels: updates });
-                  }
-                  setCtKelvinDraft(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                  if (e.key === "Escape") setCtKelvinDraft(null);
-                }}
-              />
+              <button
+                type="button"
+                onClick={() => numpad?.open(ctKelvinId, kelvin, (k) => {
+                  const clamped = Math.max(3200, Math.min(5600, k));
+                  const v = Math.round(((clamped - 3200) / 2400) * 255);
+                  const updates: Record<string, number> = {};
+                  fixtureChannels.forEach((ch, i) => {
+                    if (ch.capability === "amber") updates[fixture.startAddress + i] = Math.round((1 - v / 255) * 255);
+                    if (ch.capability === "white") updates[fixture.startAddress + i] = Math.round((v / 255) * 255);
+                  });
+                  if (Object.keys(updates).length) sendWS({ type: "set_channels", channels: updates });
+                }, { min: 3200, max: 5600, unit: "K", maxDigits: 4 })}
+                className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+                style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", outline: numpad?.session?.id === ctKelvinId ? "1px solid oklch(0.55 0.15 260)" : "none", borderRadius: 3 }}
+              >
+                {kelvin}K
+              </button>
             </div>
             <div className="relative h-5 rounded-full overflow-hidden"
               style={{ background: "linear-gradient(to right, rgb(255,185,120), rgb(255,245,230), rgb(210,225,255))" }}>
