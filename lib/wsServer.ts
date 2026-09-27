@@ -21,7 +21,7 @@ interface ExtendedWebSocket extends WebSocket {
 }
 
 let wss: WebSocketServer | null = null;
-const serverBaseDimmers: Map<string, number> = new Map();
+export const serverBaseDimmers: Map<string, number> = new Map();
 
 export function handleWsUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
   if (!wss) return;
