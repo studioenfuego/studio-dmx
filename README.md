@@ -96,6 +96,74 @@ To keep the server running in the background and start on login, create a launch
 
 Load it with: `launchctl load ~/Library/LaunchAgents/com.studiodmx.server.plist`
 
+## Bitfocus Companion Integration
+
+Studio DMX ships a first-class [Bitfocus Companion](https://bitfocus.io/companion) module in the `companion-module/` directory. Use it to control your lighting rig from a Stream Deck, Stream Deck+, or any other surface Companion supports.
+
+### Building the module
+
+```bash
+cd companion-module
+npm install
+npm run package
+```
+
+This type-checks, bundles all dependencies into a single `main.js`, and produces `companion-module-studio-dmx-1.0.0.tgz` in the `companion-module/` folder. It also clears any previous install so Companion is ready for a fresh import.
+
+### Installing in Companion 5.x
+
+1. Open Companion in your browser (default: `http://localhost:8000`)
+2. Go to **Settings → Manage Modules**
+3. Click **Import module package** and select `companion-module/companion-module-studio-dmx-1.0.0.tgz`
+4. Go to **Connections → Add connection**, search for **Studio DMX**, and add it
+5. Set **Host** to your Studio DMX server's IP (or `localhost` if Companion runs on the same machine) and **Port** to match your server's port (default `3333`)
+6. The connection status should turn green — the module polls `/api/v1/state` every 5 seconds
+
+> **After any module changes**: run `npm run package` again in `companion-module/`, then re-import the `.tgz` via **Import module package**.
+
+### Actions
+
+| Action | Description |
+|--------|-------------|
+| **Recall Scene** | Recall a scene by name with optional fade time (ms) |
+| **Set Fixture Dimmer** | Set a fixture's dimmer to an exact % |
+| **Adjust Fixture Dimmer (knob)** | Increment/decrement a fixture dimmer by ±% — assign to encoder rotate |
+| **Set Grand Master** | Set grand master to an exact % |
+| **Adjust Grand Master (knob)** | Increment/decrement grand master by ±% — assign to encoder rotate |
+| **Set Group Level** | Set a group DCA to an exact % |
+| **Adjust Group Level (knob)** | Increment/decrement a group level by ±% — assign to encoder rotate |
+| **Blackout** | Toggle grand master to 0 |
+
+### Feedbacks
+
+| Feedback | Description |
+|----------|-------------|
+| **Fixture is On** | Button lights green when a fixture dimmer is at or above a threshold % |
+| **Grand Master at level** | Button lights blue when grand master is at or above a threshold % |
+| **Group is Active** | Button lights amber when a group level is at or above a threshold % |
+
+### Variables
+
+Variables update every 5 seconds (or immediately after any action). Replace `StudioDMX` with your connection label as set in Companion.
+
+| Variable | Description |
+|----------|-------------|
+| `$(StudioDMX:grand_master_percent)` | Grand master level 0–100 |
+| `$(StudioDMX:grand_master_value)` | Grand master raw value 0–255 |
+| `$(StudioDMX:fixture_<name>_dimmer_percent)` | Fixture dimmer %, where `<name>` is the fixture name slugified (lowercase, spaces → `_`) |
+| `$(StudioDMX:group_<name>_level_percent)` | Group level %, same slugification |
+
+Example: a fixture named `"Front Wash"` → `$(StudioDMX:fixture_front_wash_dimmer_percent)`
+
+### Stream Deck+ knob setup
+
+1. Add a button and switch it to **Encoder** mode
+2. **Rotate clockwise** → Studio DMX → **Adjust Grand Master (knob)** → Step: `5`
+3. **Rotate counter-clockwise** → same action → Step: `-5`
+4. Set the button label to `GM $(StudioDMX:grand_master_percent)%` for a live readout
+
+Tune the step size to taste — `2` for fine control, `10` for coarse.
+
 ## WebSocket API
 
 Connect to `ws://localhost:3000/ws` for real-time control.

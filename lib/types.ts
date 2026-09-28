@@ -3,6 +3,8 @@ export interface ChannelDefinition {
   capability: CapabilityType;
   defaultValue?: number;
   fine?: boolean;
+  cctMin?: number;
+  cctMax?: number;
 }
 
 export interface ModeDefinition {

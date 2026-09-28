@@ -1,0 +1,25 @@
+{
+  "$schema": "../node_modules/@companion-module/base/assets/manifest.schema.json",
+  "type": "connection",
+  "id": "studio-dmx",
+  "name": "Studio DMX",
+  "shortname": "StDMX",
+  "description": "Control Studio DMX lighting controller",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "https://github.com/studioenfuego/studio-dmx",
+  "bugs": "https://github.com/studioenfuego/studio-dmx/issues",
+  "maintainers": [
+    { "name": "Studio DMX" }
+  ],
+  "legacyIds": [],
+  "manufacturer": "Studio DMX",
+  "products": ["Studio DMX Controller"],
+  "keywords": ["dmx", "lighting", "artnet", "studio"],
+  "runtime": {
+    "type": "node22",
+    "api": "nodejs-ipc",
+    "apiVersion": "2.0.0",
+    "entrypoint": "../main.js"
+  }
+}

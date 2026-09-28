@@ -1,0 +1,24 @@
+{
+  "name": "companion-module-studio-dmx",
+  "version": "1.0.0",
+  "description": "Bitfocus Companion module for Studio DMX lighting controller",
+  "type": "module",
+  "main": "main.js",
+  "files": [
+    "companion",
+    "main.js"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs",
+    "package": "npm run build && node package.mjs",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@companion-module/base": "^2.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.0.0"
+  }
+}
