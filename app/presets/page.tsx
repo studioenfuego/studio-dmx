@@ -20,7 +20,7 @@ export default function PresetsPage() {
   const recordScene = useCallback(async () => {
     const name = newSceneName.trim() || `Scene ${scenes.length + 1}`;
     const values: Record<string, number> = {};
-    channels.forEach((v, i) => { if (v > 0) values[i + 1] = v; });
+    channels.forEach((v, i) => { values[i + 1] = v; });
 
     const res = await fetch("/api/v1/scenes", {
       method: "POST",
