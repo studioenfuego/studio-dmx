@@ -13,6 +13,7 @@ A browser-based DMX lighting controller built for real studio use. Control fixtu
 - **Art-Net output** — unicast or broadcast to any Art-Net node on your network
 - **Enttec USB DMX** — direct USB output via Enttec DMX USB PRO Mk2/Mk3
 - **WebSocket API** — real-time control from external tools (Bitfocus Companion, custom scripts)
+- **[Bitfocus Companion module](https://github.com/studioenfuego/companion-module-studio-dmx)** — first-class Stream Deck integration with actions, feedbacks, and live variables
 - **Mobile-friendly** — responsive layout tested on iPad and iPhone
 
 ## Requirements
@@ -98,23 +99,14 @@ Load it with: `launchctl load ~/Library/LaunchAgents/com.studiodmx.server.plist`
 
 ## Bitfocus Companion Integration
 
-Studio DMX ships a first-class [Bitfocus Companion](https://bitfocus.io/companion) module in the `companion-module/` directory. Use it to control your lighting rig from a Stream Deck, Stream Deck+, or any other surface Companion supports.
-
-### Building the module
-
-```bash
-cd companion-module
-npm install
-npm run package
-```
-
-This type-checks, bundles all dependencies into a single `main.js`, and produces `companion-module-studio-dmx-1.0.0.tgz` in the `companion-module/` folder. It also clears any previous install so Companion is ready for a fresh import.
+Studio DMX has a first-class [Bitfocus Companion](https://bitfocus.io/companion) module at **[studioenfuego/companion-module-studio-dmx](https://github.com/studioenfuego/companion-module-studio-dmx)**. Use it to control your lighting rig from a Stream Deck, Stream Deck+, or any other surface Companion supports.
 
 ### Installing in Companion 5.x
 
-1. Open Companion in your browser (default: `http://localhost:8000`)
-2. Go to **Settings → Manage Modules**
-3. Click **Import module package** and select `companion-module/companion-module-studio-dmx-1.0.0.tgz`
+1. Download the latest `companion-module-studio-dmx-*.tgz` from the [releases page](https://github.com/studioenfuego/companion-module-studio-dmx/releases)
+2. Open Companion in your browser (default: `http://localhost:8000`)
+3. Go to **Settings → Manage Modules**
+4. Click **Import module package** and select the downloaded `.tgz`
 4. Go to **Connections → Add connection**, search for **Studio DMX**, and add it
 5. Set **Host** to your Studio DMX server's IP (or `localhost` if Companion runs on the same machine) and **Port** to match your server's port (default `3333`)
 6. The connection status should turn green — the module polls `/api/v1/state` every 5 seconds
