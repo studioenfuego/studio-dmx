@@ -121,8 +121,6 @@ const globalForUniverse = globalThis as unknown as {
 export const universe =
   globalForUniverse.dmxUniverse || new UniverseState();
 
-if (process.env.NODE_ENV !== "production") {
-  globalForUniverse.dmxUniverse = universe;
-}
+globalForUniverse.dmxUniverse = universe;
 
 export default universe;

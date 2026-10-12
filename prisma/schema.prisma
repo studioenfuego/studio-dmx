@@ -16,8 +16,9 @@ model Settings {
   artnetSubnet   Int      @default(0)
   artnetUniverse Int      @default(0)
   enttecPort     String?
-  grandMaster    Int      @default(255)
-  updatedAt      DateTime @updatedAt
+  grandMaster      Int      @default(255)
+  universeChannels String   @default("[]")
+  updatedAt        DateTime @updatedAt
 }
 
 model FixtureProfile {

@@ -138,8 +138,6 @@ class DMXEngine {
 
 const globalForEngine = globalThis as unknown as { dmxEngine: DMXEngine };
 export const dmxEngine = globalForEngine.dmxEngine || new DMXEngine();
-if (process.env.NODE_ENV !== "production") {
-  globalForEngine.dmxEngine = dmxEngine;
-}
+globalForEngine.dmxEngine = dmxEngine;
 
 export default dmxEngine;

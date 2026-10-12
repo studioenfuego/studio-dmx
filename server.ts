@@ -2,6 +2,8 @@ import { createServer } from "http";
 import next from "next";
 import { initWebSocketServer, handleWsUpgrade } from "./lib/wsServer";
 import { dmxEngine } from "./lib/dmx/engine";
+import { universe } from "./lib/dmx/universe";
+import { initUniversePersistence } from "./lib/dmx/persist";
 import { prisma } from "./lib/db";
 
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -13,6 +15,18 @@ app.prepare().then(async () => {
   const settings = await prisma.settings
     .findUnique({ where: { id: "singleton" } })
     .catch(() => null);
+
+  // Restore persisted universe state before the engine starts sending
+  if (settings) {
+    try {
+      const saved = JSON.parse(settings.universeChannels ?? "[]") as number[];
+      if (Array.isArray(saved) && saved.length > 0) {
+        universe.setChannelArray(saved);
+        console.log("[DMX] Restored universe state from database");
+      }
+    } catch { /* ignore corrupt data */ }
+    universe.setGrandMaster(settings.grandMaster ?? 255);
+  }
 
   const upgradeHandler = app.getUpgradeHandler();
 
@@ -29,6 +43,7 @@ app.prepare().then(async () => {
   });
 
   initWebSocketServer();
+  initUniversePersistence();
 
   dmxEngine.start({
     outputMode: (settings?.dmxInterface ?? "artnet") as "artnet" | "enttec",
