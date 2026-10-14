@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Play, Edit, Trash2, Clock } from "lucide-react";
+import { Plus, Play, Edit, Trash2, Clock, Copy } from "lucide-react";
 import type { SceneData } from "@/lib/types";
 import Link from "next/link";
 
@@ -16,6 +16,9 @@ export default function PresetsPage() {
   const { scenes, setScenes, channels, currentSceneId, setCurrentScene } = useDMXStore();
   const [newSceneName, setNewSceneName] = useState("");
   const [fadeTime, setFadeTime] = useState(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selectedScene = scenes.find((s) => s.id === selectedId) ?? null;
 
   const recordScene = useCallback(async () => {
     const name = newSceneName.trim() || `Scene ${scenes.length + 1}`;
@@ -47,6 +50,25 @@ export default function PresetsPage() {
   const deleteScene = useCallback(async (id: string) => {
     await fetch(`/api/v1/scenes/${id}`, { method: "DELETE" });
     setScenes(scenes.filter((s) => s.id !== id));
+    setSelectedId(null);
+  }, [scenes, setScenes]);
+
+  const duplicateScene = useCallback(async (scene: SceneData) => {
+    const res = await fetch("/api/v1/scenes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${scene.name} (copy)`,
+        values: scene.values,
+        fadeIn: scene.fadeIn,
+        fadeOut: scene.fadeOut,
+      }),
+    });
+    if (res.ok) {
+      const newScene: SceneData = await res.json();
+      setScenes([...scenes, newScene]);
+      setSelectedId(newScene.id);
+    }
   }, [scenes, setScenes]);
 
   const activeChannelCount = (scene: SceneData) =>
@@ -89,6 +111,48 @@ export default function PresetsPage() {
         </div>
       </div>
 
+      {/* Action bar — shown when a preset is selected */}
+      {selectedScene && (
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/50 shrink-0">
+          <span className="text-xs font-medium truncate max-w-[140px]">{selectedScene.name}</span>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => recallScene(selectedScene)}
+            >
+              <Play size={11} />
+              Recall
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => duplicateScene(selectedScene)}
+            >
+              <Copy size={11} />
+              Duplicate
+            </Button>
+            <Link href={`/presets/${selectedScene.id}/edit`}>
+              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+                <Edit size={11} />
+                Edit
+              </Button>
+            </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+              onClick={() => deleteScene(selectedScene.id)}
+            >
+              <Trash2 size={11} />
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
+
       <ScrollArea className="flex-1">
         <div className="p-4">
           {scenes.length === 0 ? (
@@ -100,6 +164,7 @@ export default function PresetsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {scenes.map((scene) => {
                 const isActive = scene.id === currentSceneId;
+                const isSelected = scene.id === selectedId;
                 const channelCount = activeChannelCount(scene);
                 const previewColors = Object.entries(scene.values)
                   .filter(([, v]) => v > 0)
@@ -109,10 +174,14 @@ export default function PresetsPage() {
                 return (
                   <Card
                     key={scene.id}
-                    className={`p-3 cursor-pointer transition-all hover:border-primary group relative ${
-                      isActive ? "border-primary ring-1 ring-primary" : "border-border"
+                    className={`p-3 cursor-pointer transition-all select-none ${
+                      isSelected
+                        ? "border-primary ring-2 ring-primary"
+                        : isActive
+                        ? "border-primary ring-1 ring-primary/50"
+                        : "border-border hover:border-primary/50"
                     }`}
-                    onClick={() => recallScene(scene)}
+                    onClick={() => setSelectedId(isSelected ? null : scene.id)}
                   >
                     <div className="flex gap-0.5 mb-2 h-6">
                       {previewColors.length > 0 ? (
@@ -141,32 +210,6 @@ export default function PresetsPage() {
                         Active
                       </Badge>
                     )}
-
-                    <div className="flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 flex-1"
-                        onClick={(e) => { e.stopPropagation(); recallScene(scene); }}
-                        title="Recall"
-                      >
-                        <Play size={10} />
-                      </Button>
-                      <Link href={`/presets/${scene.id}/edit`} onClick={(e) => e.stopPropagation()}>
-                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" title="Edit">
-                          <Edit size={10} />
-                        </Button>
-                      </Link>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 w-6 p-0 text-destructive"
-                        onClick={(e) => { e.stopPropagation(); deleteScene(scene.id); }}
-                        title="Delete"
-                      >
-                        <Trash2 size={10} />
-                      </Button>
-                    </div>
                   </Card>
                 );
               })}
