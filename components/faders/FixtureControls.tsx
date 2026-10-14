@@ -6,6 +6,8 @@ import { useNumpad } from "./NumpadContext";
 import { HexColorPicker } from "react-colorful";
 import { useDMXStore } from "@/lib/store";
 import { sendWS } from "@/lib/wsClient";
+import { Button } from "@/components/ui/button";
+import { Power, Disc } from "lucide-react";
 import type { FixtureInstanceData, ChannelDefinition } from "@/lib/types";
 
 const EFFECT_SLOTS = [
@@ -32,7 +34,10 @@ interface Props {
 }
 
 export function FixtureControls({ fixture }: Props) {
-  const { channels } = useDMXStore();
+  const { channels, fixtures } = useDMXStore();
+  const [preOffValue, setPreOffValue] = useState<number | null>(null);
+  const [soloed, setSoloed] = useState(false);
+  const preSoloChannels = useRef<Record<string, number>>({});
 
   const fixtureChannels: ChannelDefinition[] = useMemo(() => {
     if (!fixture.profile) return [];
@@ -120,6 +125,56 @@ export function FixtureControls({ fixture }: Props) {
 
   const dimmerIdx = fixtureChannels.findIndex((c) => c.capability === "dimmer");
   const dimmerValue = dimmerIdx >= 0 ? getChannelValue(dimmerIdx) : null;
+  const isOn = dimmerValue === null || dimmerValue > 0;
+
+  const toggleOnOff = () => {
+    if (dimmerIdx < 0) return;
+    if (isOn) {
+      setPreOffValue(dimmerValue ?? 255);
+      setCapability("dimmer", 0);
+    } else {
+      setCapability("dimmer", preOffValue ?? 255);
+      setPreOffValue(null);
+    }
+  };
+
+  const toggleSolo = () => {
+    if (soloed) {
+      setSoloed(false);
+      if (Object.keys(preSoloChannels.current).length) {
+        sendWS({ type: "set_channels", channels: preSoloChannels.current });
+        preSoloChannels.current = {};
+      }
+    } else {
+      setSoloed(true);
+      const snapshot: Record<string, number> = {};
+      const zeros: Record<string, number> = {};
+      fixtures.forEach((f) => {
+        if (f.id === fixture.id || !f.profile) return;
+        const fChans: ChannelDefinition[] = (() => {
+          try {
+            const modes = f.profile.modes;
+            if (modes.length > f.modeIndex) {
+              const mode = modes[f.modeIndex];
+              return mode.channels.map((name: string) =>
+                f.profile!.channels.find((c: ChannelDefinition) => c.name === name) ?? { name, capability: "noFunction" as const }
+              );
+            }
+          } catch { /* */ }
+          return f.profile!.channels;
+        })();
+        fChans.forEach((ch, i) => {
+          if (ch.capability === "dimmer") {
+            const addr = f.startAddress + i;
+            snapshot[addr] = channels[addr - 1] ?? 0;
+            zeros[addr] = 0;
+          }
+        });
+      });
+      preSoloChannels.current = snapshot;
+      if (Object.keys(zeros).length) sendWS({ type: "set_channels", channels: zeros });
+    }
+  };
 
   const panIdx = fixtureChannels.findIndex((c) => c.capability === "pan");
   const tiltIdx = fixtureChannels.findIndex((c) => c.capability === "tilt");
@@ -128,6 +183,48 @@ export function FixtureControls({ fixture }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Dimmer — always first */}
+      {dimmerValue !== null && (
+        <div className="space-y-2 pb-3 border-b border-border">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Dimmer</label>
+            <div className="flex items-center gap-1.5">
+              <PctInput
+                pct={(dimmerValue / 255) * 100}
+                onChange={(p) => setCapability("dimmer", Math.round(p / 100 * 255))}
+                className="text-xs font-mono text-right text-muted-foreground"
+              />
+              <Button
+                size="sm"
+                variant={isOn ? "default" : "outline"}
+                className="h-7 w-7 p-0"
+                onClick={toggleOnOff}
+                title={isOn ? "Turn off" : "Turn on"}
+              >
+                <Power size={12} />
+              </Button>
+              <Button
+                size="sm"
+                variant={soloed ? "default" : "outline"}
+                className={`h-7 w-7 p-0 ${soloed ? "bg-amber-500 hover:bg-amber-600 border-amber-500" : ""}`}
+                onClick={toggleSolo}
+                title={soloed ? "Un-solo" : "Solo (mute others)"}
+              >
+                <Disc size={12} />
+              </Button>
+            </div>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={255}
+            value={dimmerValue}
+            onChange={(e) => setCapability("dimmer", parseInt(e.target.value))}
+            className="w-full accent-blue-400"
+          />
+        </div>
+      )}
+
       <div className="text-xs text-muted-foreground font-mono">
         Ch {fixture.startAddress}–{fixture.startAddress + fixtureChannels.length - 1}
         {fixture.profile && (
@@ -477,7 +574,7 @@ export function FixtureControls({ fixture }: Props) {
         );
       })()}
 
-      {["dimmer", "white", "amber", "uv", "strobe", "zoom", "focus", "iris", "frost", "speed"].map((cap) => {
+      {["white", "amber", "uv", "strobe", "zoom", "focus", "iris", "frost", "speed"].map((cap) => {
         if (!hasCapability(cap)) return null;
         // Skip white/amber when they are handled by the CT control above
         if ((cap === "white" || cap === "amber") && !hasCapability("red") && hasCapability("white") && hasCapability("amber")) return null;
@@ -488,15 +585,7 @@ export function FixtureControls({ fixture }: Props) {
           <div key={cap} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider capitalize">{LABELS[cap] ?? cap}</label>
-              {cap === "dimmer" ? (
-                <PctInput
-                  pct={(val / 255) * 100}
-                  onChange={(p) => setCapability(cap, Math.round(p / 100 * 255))}
-                  className="text-xs font-mono text-right text-muted-foreground"
-                />
-              ) : (
-                <span className="text-xs font-mono text-muted-foreground">{val}</span>
-              )}
+              <span className="text-xs font-mono text-muted-foreground">{val}</span>
             </div>
             <input
               type="range"
