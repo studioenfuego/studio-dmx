@@ -28,6 +28,32 @@ app.prepare().then(async () => {
     universe.setGrandMaster(settings.grandMaster ?? 255);
   }
 
+  // Populate dimmer channels from fixture profiles so GM only scales dimmers,
+  // never CCT or colour channels, even before any browser client connects.
+  try {
+    const fixtures = await prisma.fixtureInstance.findMany({ include: { profile: true } });
+    const dimmerAddrs: number[] = [];
+    for (const f of fixtures) {
+      const profileChans = JSON.parse(f.profile.channels) as { name: string; capability: string }[];
+      const modeChans: string[] = (() => {
+        try {
+          const modes = JSON.parse(f.profile.modes) as { channels: string[] }[];
+          return modes[f.modeIndex]?.channels ?? profileChans.map((c) => c.name);
+        } catch { return profileChans.map((c) => c.name); }
+      })();
+      modeChans.forEach((name, idx) => {
+        const def = profileChans.find((c) => c.name === name);
+        if (def?.capability === "dimmer") dimmerAddrs.push(f.startAddress + idx);
+      });
+    }
+    if (dimmerAddrs.length > 0) {
+      universe.setDimmerChannels(dimmerAddrs);
+      console.log(`[DMX] Registered ${dimmerAddrs.length} dimmer channel(s): ${dimmerAddrs.join(", ")}`);
+    }
+  } catch (e) {
+    console.error("[DMX] Failed to register dimmer channels:", e);
+  }
+
   const upgradeHandler = app.getUpgradeHandler();
 
   const server = createServer((req, res) => {
